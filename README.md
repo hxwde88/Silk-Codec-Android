@@ -19,7 +19,7 @@ silk / slk / mp3 / pcm / raw
 
 ---
 
-##  快速使用示例
+##  使用示例
 ```java
 // 初始化编解码器
 SilkCodec codec = new SilkCodec();
@@ -40,7 +40,7 @@ result = codec.pcmToSilk("/sdcard/test.pcm", "/sdcard/out.silk", 24000, 48000, 1
 int type = codec.getFileType("/sdcard/somefile");
 ```
 
-###  完整错误码说明
+###  错误码说明
 - `0` = 成功
 - `-1` = 无法获取文件扩展名
 - `-2` = 不支持的音频格式
