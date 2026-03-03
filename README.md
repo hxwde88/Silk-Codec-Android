@@ -21,7 +21,7 @@ silk / slk / mp3 / pcm / raw
 
 ---
 
-##  使用示例
+## 使用示例
 ```java
 // 初始化编解码器
 SilkCodec codec = new SilkCodec();
@@ -39,6 +39,7 @@ result = codec.autoToPcm("/sdcard/test.wav", "/sdcard/result.pcm");
 result = codec.pcmToSilk("/sdcard/test.pcm", "/sdcard/out.silk", 24000, 48000, 1);
 
 // 5. 获取文件真实类型
+// 返回值：0=未知 1=Silk 2=MP3 3=WAV 4=FLAC 5=OGG 6=PCM 7=M4A
 int type = codec.getFileType("/sdcard/somefile");
 ```
 
