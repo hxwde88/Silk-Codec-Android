@@ -5,7 +5,7 @@ Android 平台一站式音频编解码工具，支持主流音频与微信 SILK 
 
 ---
 
-## 🌟 支持功能
+##  支持功能
 
 ### 🔹 音频 → Silk
 - MP3 → Silk
@@ -26,9 +26,10 @@ Android 平台一站式音频编解码工具，支持主流音频与微信 SILK 
 - 自动识别格式 → PCM
 
 ### 🔹 工具方法
+
 ---
 
-## 📌 支持格式
+##  支持格式
 **输入：**
 mp3 / wav / flac / ogg / oga / amr / pcm / raw / silk / slk
 
@@ -37,12 +38,12 @@ silk / slk / mp3 / pcm / raw
 
 ---
 
-## 🎵 采样率支持
+##  采样率支持
 **8000 / 12000 / 16000 / 24000 / 32000 / 44100 / 48000 Hz**
 
 ---
 
-## 🧩 快速使用示例
+##  快速使用示例
 ```java
 // 初始化编解码器
 SilkCodec codec = new SilkCodec();
@@ -56,17 +57,14 @@ result = codec.silkToMp3("/sdcard/out.silk", "/sdcard/result.mp3", 24000);
 // 3. 任意格式 → PCM
 result = codec.autoToPcm("/sdcard/test.wav", "/sdcard/result.pcm");
 
-// 4. PCM → Silk（需传入参数）
+// 4. PCM → Silk
 result = codec.pcmToSilk("/sdcard/test.pcm", "/sdcard/out.silk", 24000, 48000, 1);
 
-// 5. 获取文件真实类型（文件头识别）
+// 5. 获取文件真实类型
 int type = codec.getFileType("/sdcard/somefile");
 ```
 
-
----
-
-## 🚨 完整错误码说明
+###  完整错误码说明
 - `0` = 成功
 - `-1` = 无法获取文件扩展名
 - `-2` = 不支持的音频格式
@@ -86,7 +84,7 @@ int type = codec.getFileType("/sdcard/somefile");
 
 ---
 
-## 🔧 适用场景
+##  适用场景
 - 微信语音编码/解码
 - 语音消息体积压缩
 - 音频格式批量转换
@@ -94,10 +92,6 @@ int type = codec.getFileType("/sdcard/somefile");
 
 ---
 
-## 📄 开源协议
+##  开源协议
 **Apache License 2.0**
-
----
-
-By 雲上升
 
