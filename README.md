@@ -40,7 +40,7 @@ result = codec.pcmToSilk("/sdcard/test.pcm", "/sdcard/out.silk", 24000, 48000, 1
 int type = codec.getFileType("/sdcard/somefile");
 ```
 
-###错误码说明
+###  错误码说明
 - `0` = 成功
 - `-1` = 无法获取文件扩展名
 - `-2` = 不支持的音频格式
