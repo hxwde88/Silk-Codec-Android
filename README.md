@@ -41,6 +41,10 @@ result = codec.pcmToSilk("/sdcard/test.pcm", "/sdcard/out.silk", 24000, 48000, 1
 // 5. 获取文件真实类型
 // 返回值：0=未知 1=Silk 2=MP3 3=WAV 4=FLAC 5=OGG 6=PCM 7=M4A
 int type = codec.getFileType("/sdcard/somefile");
+
+// 6. 获取语音时长
+// 返回值: 毫秒 (1000) 未知 = 0
+long duration = codec.getDuration("/sdcard/somefile");
 ```
 
 ###  错误码说明
