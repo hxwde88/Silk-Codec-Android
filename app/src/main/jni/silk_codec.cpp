@@ -1242,26 +1242,69 @@ static double getSilkDuration(const char *path) {
 }
 
 /* =========================================================================
- * 获取音频时长 (通用接口)
- * 
- * 支持格式: MP3, WAV, FLAC, OGG, Silk
- * 返回值: 时长 (秒)，若失败返回 0.0 或负数错误码
+ * 辅助函数：获取 Silk 文件时长 (毫秒)
  * ========================================================================= */
-JNIEXPORT jdouble JNICALL Java_me_yun_silk_SilkCodec_getDuration(
+static long long getSilkDurationMs(const char *path) {
+    FILE *fin = fopen(path, "rb");
+    if (!fin) return 0;
+
+    // 1. 解析 Silk 文件头
+    char head_buf[16];
+    int read_len = fread(head_buf, 1, 16, fin);
+    int data_start = 0;
+    for (int i = 0; i <= read_len - 9; i++) {
+        if (memcmp(head_buf + i, "#!SILK_V3", 9) == 0) {
+            data_start = i + 9;
+            break;
+        }
+    }
+    
+    if (data_start == 0) {
+        fclose(fin);
+        return 0;
+    }
+    fseek(fin, data_start, SEEK_SET);
+
+    // 2. 统计帧数
+    long long frameCount = 0;
+    SKP_int16 nBytesIn;
+    // Silk 文件每帧前面有 2 字节表示该帧长度
+    while (fread(&nBytesIn, sizeof(SKP_int16), 1, fin) == 1) {
+        // 遇到 0xFFFF (Silk 结束标记)
+        if (nBytesIn == -1 || (unsigned short)nBytesIn == 0xFFFF) break;
+        if (nBytesIn <= 0 || nBytesIn > MAX_ARITHM_BYTES) break;
+
+        // 跳过当前帧数据
+        if (fseek(fin, nBytesIn, SEEK_CUR) != 0) break;
+        frameCount++;
+    }
+
+    fclose(fin);
+    // Silk 标准每帧是 20 毫秒
+    return frameCount * 20;
+}
+
+/* =========================================================================
+ * 获取音频时长 (毫秒)
+ * 
+ * 返回值: 毫秒数 (如 2秒返回 2000)
+ * ========================================================================= */
+JNIEXPORT jlong JNICALL Java_me_yun_silk_SilkCodec_getDuration(
     JNIEnv *env, jobject thiz, jstring filePath) {
     const char *path = env->GetStringUTFChars(filePath, 0);
     int type = detectFileType(path);
-    double duration = 0.0;
+    jlong durationMs = 0;
 
     switch (type) {
         case FILE_TYPE_SILK:
-            duration = getSilkDuration(path);
+            durationMs = (jlong)getSilkDurationMs(path);
             break;
 
         case FILE_TYPE_MP3: {
             drmp3 mp3;
             if (drmp3_init_file(&mp3, path, NULL)) {
-                duration = (double)mp3.totalPCMFrameCount / mp3.sampleRate;
+                // 时长(ms) = 总采样数 * 1000 / 采样率
+                durationMs = (jlong)((double)mp3.totalPCMFrameCount * 1000 / mp3.sampleRate);
                 drmp3_uninit(&mp3);
             }
             break;
@@ -1270,7 +1313,7 @@ JNIEXPORT jdouble JNICALL Java_me_yun_silk_SilkCodec_getDuration(
         case FILE_TYPE_WAV: {
             drwav wav;
             if (drwav_init_file(&wav, path, NULL)) {
-                duration = (double)wav.totalPCMFrameCount / wav.sampleRate;
+                durationMs = (jlong)((double)wav.totalPCMFrameCount * 1000 / wav.sampleRate);
                 drwav_uninit(&wav);
             }
             break;
@@ -1279,7 +1322,7 @@ JNIEXPORT jdouble JNICALL Java_me_yun_silk_SilkCodec_getDuration(
         case FILE_TYPE_FLAC: {
             drflac *pFlac = drflac_open_file(path, NULL);
             if (pFlac) {
-                duration = (double)pFlac->totalPCMFrameCount / pFlac->sampleRate;
+                durationMs = (jlong)((double)pFlac->totalPCMFrameCount * 1000 / pFlac->sampleRate);
                 drflac_close(pFlac);
             }
             break;
@@ -1289,19 +1332,20 @@ JNIEXPORT jdouble JNICALL Java_me_yun_silk_SilkCodec_getDuration(
             int error;
             stb_vorbis *v = stb_vorbis_open_filename(path, &error, NULL);
             if (v) {
-                duration = stb_vorbis_stream_length_in_seconds(v);
+                // stb_vorbis 提供秒数，转为毫秒
+                durationMs = (jlong)(stb_vorbis_stream_length_in_seconds(v) * 1000);
                 stb_vorbis_close(v);
             }
             break;
         }
 
         default:
-            duration = 0.0;
+            durationMs = 0;
             break;
     }
 
     env->ReleaseStringUTFChars(filePath, path);
-    return duration;
+    return durationMs;
 }
 
 /* =========================================================================
