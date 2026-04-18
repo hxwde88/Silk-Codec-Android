@@ -15,7 +15,7 @@ public class SilkCodec {
     public native int getFileType(String filePath);
 
     // ==================== 转 Silk ====================
- 
+
     /**
      * MP3 转 Silk
      *
@@ -136,4 +136,12 @@ public class SilkCodec {
      * @return 0=成功, 负数=错误码
      */
     public native int autoToPcm(String audioPath, String pcmPath);
+
+    /**
+     * 获取音频文件时长
+     *
+     * @param filePath 文件绝对路径
+     * @return 时长（秒），例如 12.5 表示 12秒500毫秒
+     */
+    public native double getDuration(String filePath);
 }
