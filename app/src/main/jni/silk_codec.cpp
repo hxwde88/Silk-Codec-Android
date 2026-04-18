@@ -1248,7 +1248,7 @@ static long long getSilkDurationMs(const char *path) {
     FILE *fin = fopen(path, "rb");
     if (!fin) return 0;
 
-    // 1. 解析 Silk 文件头
+    // 1. 跳过微信 Silk 文件头
     char head_buf[16];
     int read_len = fread(head_buf, 1, 16, fin);
     int data_start = 0;
@@ -1265,29 +1265,26 @@ static long long getSilkDurationMs(const char *path) {
     }
     fseek(fin, data_start, SEEK_SET);
 
-    // 2. 统计帧数
-    long long frameCount = 0;
-    SKP_int16 nBytesIn;
-    // Silk 文件每帧前面有 2 字节表示该帧长度
-    while (fread(&nBytesIn, sizeof(SKP_int16), 1, fin) == 1) {
-        // 遇到 0xFFFF (Silk 结束标记)
+    // 2. 遍历帧。Silk 每帧固定 20ms
+    long long totalMs = 0;
+    short nBytesIn;
+    while (fread(&nBytesIn, 2, 1, fin) == 1) {
+        // 遇到 0xFFFF 结束符或异常长度则退出
         if (nBytesIn == -1 || (unsigned short)nBytesIn == 0xFFFF) break;
-        if (nBytesIn <= 0 || nBytesIn > MAX_ARITHM_BYTES) break;
+        if (nBytesIn <= 0 || nBytesIn > 2048) break;
 
-        // 跳过当前帧数据
         if (fseek(fin, nBytesIn, SEEK_CUR) != 0) break;
-        frameCount++;
+        totalMs += 20; // 每帧增加 20 毫秒
     }
 
     fclose(fin);
-    // Silk 标准每帧是 20 毫秒
-    return frameCount * 20;
+    return totalMs;
 }
 
 /* =========================================================================
- * 获取音频时长 (毫秒)
+ * 获取音频时长 (单位：毫秒)
  * 
- * 返回值: 毫秒数 (如 2秒返回 2000)
+ * 返回值: long (1秒 = 1000)
  * ========================================================================= */
 JNIEXPORT jlong JNICALL Java_me_yun_silk_SilkCodec_getDuration(
     JNIEnv *env, jobject thiz, jstring filePath) {
@@ -1303,8 +1300,8 @@ JNIEXPORT jlong JNICALL Java_me_yun_silk_SilkCodec_getDuration(
         case FILE_TYPE_MP3: {
             drmp3 mp3;
             if (drmp3_init_file(&mp3, path, NULL)) {
-                // 时长(ms) = 总采样数 * 1000 / 采样率
-                durationMs = (jlong)((double)mp3.totalPCMFrameCount * 1000 / mp3.sampleRate);
+                // 总毫秒 = (总采样数 * 1000) / 采样率
+                durationMs = (jlong)((mp3.totalPCMFrameCount * 1000) / mp3.sampleRate);
                 drmp3_uninit(&mp3);
             }
             break;
@@ -1313,7 +1310,7 @@ JNIEXPORT jlong JNICALL Java_me_yun_silk_SilkCodec_getDuration(
         case FILE_TYPE_WAV: {
             drwav wav;
             if (drwav_init_file(&wav, path, NULL)) {
-                durationMs = (jlong)((double)wav.totalPCMFrameCount * 1000 / wav.sampleRate);
+                durationMs = (jlong)((wav.totalPCMFrameCount * 1000) / wav.sampleRate);
                 drwav_uninit(&wav);
             }
             break;
@@ -1322,7 +1319,7 @@ JNIEXPORT jlong JNICALL Java_me_yun_silk_SilkCodec_getDuration(
         case FILE_TYPE_FLAC: {
             drflac *pFlac = drflac_open_file(path, NULL);
             if (pFlac) {
-                durationMs = (jlong)((double)pFlac->totalPCMFrameCount * 1000 / pFlac->sampleRate);
+                durationMs = (jlong)((pFlac->totalPCMFrameCount * 1000) / pFlac->sampleRate);
                 drflac_close(pFlac);
             }
             break;
@@ -1332,7 +1329,7 @@ JNIEXPORT jlong JNICALL Java_me_yun_silk_SilkCodec_getDuration(
             int error;
             stb_vorbis *v = stb_vorbis_open_filename(path, &error, NULL);
             if (v) {
-                // stb_vorbis 提供秒数，转为毫秒
+                // stb_vorbis 提供的秒数转为毫秒
                 durationMs = (jlong)(stb_vorbis_stream_length_in_seconds(v) * 1000);
                 stb_vorbis_close(v);
             }
