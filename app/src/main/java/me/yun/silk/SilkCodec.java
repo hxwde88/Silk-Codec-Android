@@ -138,10 +138,25 @@ public class SilkCodec {
     public native int autoToPcm(String audioPath, String pcmPath);
 
     /**
-     * 获取音频文件时长
+     * 获取音频时长（毫秒）
      *
-     * @param filePath 文件绝对路径
-     * @return 时长（秒），例如 12.5 表示 12秒500毫秒
+     * @param filePath 音频文件路径
+     * @return 时长，单位毫秒 (例如 2秒返回 2000)
      */
-    public native double getDuration(String filePath);
+    public native long getDuration(String filePath);
+
+    /**
+     * 获取限制后的音频时长（毫秒） 如果时长超过 60 秒，则强制返回 60000 毫秒
+     *
+     * @param filePath 音频文件路径
+     * @return 时长（毫秒），最高 60000
+     */
+    public long getDurations(String filePath) {
+        long duration = getDuration(filePath);
+        // 60秒 = 60 * 1000 毫秒
+        if (duration > 60000) {
+            return 60000;
+        }
+        return duration;
+    }
 }
