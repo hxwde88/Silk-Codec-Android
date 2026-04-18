@@ -1200,6 +1200,111 @@ JNIEXPORT jint JNICALL Java_me_yun_silk_SilkCodec_oggToPcm(
 }
 
 /* =========================================================================
+ * 辅助函数：获取 Silk 文件时长 (秒)
+ * 
+ * Silk 文件没有时长头，需要通过遍历所有数据帧来计算
+ * ========================================================================= */
+static double getSilkDuration(const char *path) {
+    FILE *fin = fopen(path, "rb");
+    if (!fin) return 0.0;
+
+    // 1. 跳过微信 Silk 文件头 (10字节)
+    char head_buf[16];
+    int read_len = fread(head_buf, 1, 16, fin);
+    int data_start = 0;
+    for (int i = 0; i <= read_len - 9; i++) {
+        if (memcmp(head_buf + i, "#!SILK_V3", 9) == 0) {
+            data_start = i + 9;
+            break;
+        }
+    }
+    if (data_start == 0) { // 非标准 Silk
+        fclose(fin);
+        return 0.0;
+    }
+    fseek(fin, data_start, SEEK_SET);
+
+    // 2. 遍历所有帧，每一帧代表 20ms (0.02s)
+    int frameCount = 0;
+    SKP_int16 nBytesIn;
+    while (fread(&nBytesIn, sizeof(SKP_int16), 1, fin) == 1) {
+        // 遇到 0xFFFF (Silk 结束标记) 则退出
+        if (nBytesIn == -1 || (unsigned short)nBytesIn == 0xFFFF) break;
+        if (nBytesIn <= 0 || nBytesIn > MAX_ARITHM_BYTES) break;
+
+        // 跳过这一帧的数据内容
+        if (fseek(fin, nBytesIn, SEEK_CUR) != 0) break;
+        frameCount++;
+    }
+
+    fclose(fin);
+    return frameCount * 0.020; // 每帧 20ms
+}
+
+/* =========================================================================
+ * 获取音频时长 (通用接口)
+ * 
+ * 支持格式: MP3, WAV, FLAC, OGG, Silk
+ * 返回值: 时长 (秒)，若失败返回 0.0 或负数错误码
+ * ========================================================================= */
+JNIEXPORT jdouble JNICALL Java_me_yun_silk_SilkCodec_getDuration(
+    JNIEnv *env, jobject thiz, jstring filePath) {
+    const char *path = env->GetStringUTFChars(filePath, 0);
+    int type = detectFileType(path);
+    double duration = 0.0;
+
+    switch (type) {
+        case FILE_TYPE_SILK:
+            duration = getSilkDuration(path);
+            break;
+
+        case FILE_TYPE_MP3: {
+            drmp3 mp3;
+            if (drmp3_init_file(&mp3, path, NULL)) {
+                duration = (double)mp3.totalPCMFrameCount / mp3.sampleRate;
+                drmp3_uninit(&mp3);
+            }
+            break;
+        }
+
+        case FILE_TYPE_WAV: {
+            drwav wav;
+            if (drwav_init_file(&wav, path, NULL)) {
+                duration = (double)wav.totalPCMFrameCount / wav.sampleRate;
+                drwav_uninit(&wav);
+            }
+            break;
+        }
+
+        case FILE_TYPE_FLAC: {
+            drflac *pFlac = drflac_open_file(path, NULL);
+            if (pFlac) {
+                duration = (double)pFlac->totalPCMFrameCount / pFlac->sampleRate;
+                drflac_close(pFlac);
+            }
+            break;
+        }
+
+        case FILE_TYPE_OGG: {
+            int error;
+            stb_vorbis *v = stb_vorbis_open_filename(path, &error, NULL);
+            if (v) {
+                duration = stb_vorbis_stream_length_in_seconds(v);
+                stb_vorbis_close(v);
+            }
+            break;
+        }
+
+        default:
+            duration = 0.0;
+            break;
+    }
+
+    env->ReleaseStringUTFChars(filePath, path);
+    return duration;
+}
+
+/* =========================================================================
  * 自动识别音频格式并转 PCM (统一入口)
  * 
  * 支持格式: MP3, WAV, FLAC, OGG, PCM
