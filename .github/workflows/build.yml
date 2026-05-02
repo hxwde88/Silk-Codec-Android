@@ -38,13 +38,11 @@ jobs:
               f.write(code)
           "
 
-          echo "=== Source ==="
-          cat src/me/yun/silk/SilkCodec.java
-
           echo "=== Compile ==="
           javac src/me/yun/silk/SilkCodec.java -d out
 
           echo "=== DEX ==="
+          mkdir -p dex_out
           java -cp $ANDROID_HOME/build-tools/34.0.0/lib/d8.jar com.android.tools.r8.D8 --output dex_out out/me/yun/silk/SilkCodec.class
 
           echo "=== Package ==="
