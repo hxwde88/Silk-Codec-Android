@@ -1,105 +1,35 @@
-name: Build SilkCodec
+name: Build
 
-on:
-  workflow_dispatch:
+on: workflow_dispatch
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+      - uses: android-actions/setup-android@v3
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - run: sdkmanager "build-tools;34.0.0"
 
-      - name: Create wrapper source
-        run: |
-          mkdir -p silk-lib/src/main/java/me/yun/silk
-          cat > silk-lib/src/main/java/me/yun/silk/SilkCodec.java << 'EOF'
-package me.yun.silk;
+      - run: >
+          javac
+          wrapper/src/me/yun/silk/SilkCodec.java
+          -d out
 
-public class SilkCodec {
-    static {
-        System.loadLibrary("silk");
-    }
+      - run: >
+          java
+          -cp $ANDROID_HOME/build-tools/34.0.0/lib/d8.jar
+          com.android.tools.r8.D8
+          --output dex_out
+          out/me/yun/silk/SilkCodec.class
 
-    public native int autoToSilk(String input, String output, int sampleRate);
-    public native int silkToMp3(String input, String output, int sampleRate);
-    public native int autoToPcm(String input, String output);
-    public native int pcmToSilk(String input, String output, int sampleRate, int maxRate, int channels);
-    public native int getFileType(String path);
-    public native long getDuration(String path);
-}
-EOF
+      - run: cd dex_out && zip ../SilkCodec.jar classes.dex
 
-      - name: Create gradle files
-        run: |
-          cat > settings.gradle << 'EOF'
-          rootProject.name = 'SilkCodec'
-          include ':silk-lib'
-          EOF
-
-          cat > build.gradle << 'EOF'
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:8.2.0'
-              }
-          }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
-
-          cat > silk-lib/build.gradle << 'EOF'
-          apply plugin: 'com.android.library'
-          android {
-              namespace 'me.yun.silk'
-              compileSdk 34
-              defaultConfig {
-                  minSdk 21
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-          }
-          EOF
-
-          cat > silk-lib/src/main/AndroidManifest.xml << 'EOF'
-          <manifest package="me.yun.silk"/>
-          EOF
-
-          mkdir -p gradle/wrapper
-          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-          EOF
-
-      - name: Build
-        run: |
-          chmod +x gradlew 2>/dev/null || true
-          gradle :silk-lib:assembleRelease --no-daemon
-
-      - name: Extract DEX jar
-        run: |
-          find . -name "classes.jar" -path "*/silk-lib/*" -exec ls -la {} \;
-          find . -name "classes.jar" -path "*/silk-lib/*" | head -1 | xargs -I{} cp {} SilkCodec.jar
-          ls -la SilkCodec.jar
-
-      - name: Upload
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: SilkCodec
           path: SilkCodec.jar
