@@ -1,4 +1,4 @@
-name: Build Silk Codec
+name: Build SilkCodec Wrapper
 
 on:
   workflow_dispatch:
@@ -7,39 +7,31 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Setup Android SDK & NDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK
-        run: sdkmanager "ndk;25.2.9519653"
-
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Build
+      - name: Create source
         run: |
-          chmod +x gradlew
-          ./gradlew assembleRelease
+          mkdir -p src/me/yun/silk
+          cat > src/me/yun/silk/SilkCodec.java << 'EOF'
+          package me.yun.silk;
+          public class SilkCodec {
+              static { System.loadLibrary("silk"); }
+              public native int autoToSilk(String input, String output, int sampleRate);
+              public native int silkToMp3(String input, String output, int sampleRate);
+              public native int autoToPcm(String input, String output);
+              public native int pcmToSilk(String input, String output, int sampleRate, int maxRate, int channels);
+              public native int getFileType(String path);
+              public native long getDuration(String path);
+          }
+          EOF
 
-      - name: Find and copy .so files
+      - name: Compile
         run: |
-          mkdir -p output
-          find . -name "*.so" -exec cp {} output/ \;
-          find . -name "*.jar" -path "*/build/*" -exec cp {} output/ \;
-          find . -name "*.aar" -path "*/build/*" -exec cp {} output/ \;
-          ls -la output/
+          javac -source 8 -target 8 -Xlint:-options src/me/yun/silk/SilkCodec.java -d out
+          cd out
+          jar cf ../SilkCodec.jar me/
+          ls -la ../SilkCodec.jar
 
-      - name: Upload artifacts
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: silk-codec-build
-          path: output/
-
+          name: SilkCodec
+          path: SilkCodec.jar
