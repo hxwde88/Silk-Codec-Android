@@ -20,10 +20,12 @@ jobs:
           sdkmanager "build-tools;34.0.0"
 
           mkdir -p src/me/yun/silk
-          cat > src/me/yun/silk/SilkCodec.java << 'EOF'
-          package me.yun.silk;
+
+          python3 -c "
+          code = '''package me.yun.silk;
+
           public class SilkCodec {
-              static { System.loadLibrary("silk"); }
+              static { System.loadLibrary(\"silk\"); }
               public native int autoToSilk(String input, String output, int sampleRate);
               public native int silkToMp3(String input, String output, int sampleRate);
               public native int autoToPcm(String input, String output);
@@ -31,11 +33,23 @@ jobs:
               public native int getFileType(String path);
               public native long getDuration(String path);
           }
-          EOF
+          '''
+          with open('src/me/yun/silk/SilkCodec.java', 'w') as f:
+              f.write(code)
+          "
 
-          javac -source 8 -target 8 src/me/yun/silk/SilkCodec.java -d out
+          echo "=== Source ==="
+          cat src/me/yun/silk/SilkCodec.java
+
+          echo "=== Compile ==="
+          javac src/me/yun/silk/SilkCodec.java -d out
+
+          echo "=== DEX ==="
           java -cp $ANDROID_HOME/build-tools/34.0.0/lib/d8.jar com.android.tools.r8.D8 --output dex_out out/me/yun/silk/SilkCodec.class
+
+          echo "=== Package ==="
           cd dex_out && zip ../SilkCodec.jar classes.dex
+          ls -la ../SilkCodec.jar
 
       - uses: actions/upload-artifact@v4
         with:
