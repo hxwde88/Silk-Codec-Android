@@ -1,4 +1,4 @@
-name: Build SilkCodec Wrapper
+name: Build SilkCodec
 
 on:
   workflow_dispatch:
@@ -18,40 +18,84 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Create wrapper source
+        run: |
+          mkdir -p silk-lib/src/main/java/me/yun/silk
+          cat > silk-lib/src/main/java/me/yun/silk/SilkCodec.java << 'EOF'
+package me.yun.silk;
+
+public class SilkCodec {
+    static {
+        System.loadLibrary("silk");
+    }
+
+    public native int autoToSilk(String input, String output, int sampleRate);
+    public native int silkToMp3(String input, String output, int sampleRate);
+    public native int autoToPcm(String input, String output);
+    public native int pcmToSilk(String input, String output, int sampleRate, int maxRate, int channels);
+    public native int getFileType(String path);
+    public native long getDuration(String path);
+}
+EOF
+
+      - name: Create gradle files
+        run: |
+          cat > settings.gradle << 'EOF'
+          rootProject.name = 'SilkCodec'
+          include ':silk-lib'
+          EOF
+
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:8.2.0'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+          cat > silk-lib/build.gradle << 'EOF'
+          apply plugin: 'com.android.library'
+          android {
+              namespace 'me.yun.silk'
+              compileSdk 34
+              defaultConfig {
+                  minSdk 21
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+          }
+          EOF
+
+          cat > silk-lib/src/main/AndroidManifest.xml << 'EOF'
+          <manifest package="me.yun.silk"/>
+          EOF
+
+          mkdir -p gradle/wrapper
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          EOF
+
       - name: Build
         run: |
-          sdkmanager "build-tools;34.0.0"
+          chmod +x gradlew 2>/dev/null || true
+          gradle :silk-lib:assembleRelease --no-daemon
 
-          # 创建源码
-          mkdir -p src/me/yun/silk
-          cat > src/me/yun/silk/SilkCodec.java << 'JAVASRC'
-          package me.yun.silk;
-          public class SilkCodec {
-              static { System.loadLibrary("silk"); }
-              public native int autoToSilk(String input, String output, int sampleRate);
-              public native int silkToMp3(String input, String output, int sampleRate);
-              public native int autoToPcm(String input, String output);
-              public native int pcmToSilk(String input, String output, int sampleRate, int maxRate, int channels);
-              public native int getFileType(String path);
-              public native long getDuration(String path);
-          }
-          JAVASRC
-
-          # 编译
-          mkdir -p classes
-          javac -source 8 -target 8 -Xlint:-options src/me/yun/silk/SilkCodec.java -d classes
-          echo "javac OK"
-
-          # 用 java -jar 直接调用 d8.jar
-          D8_JAR=$(find $ANDROID_HOME -name "d8.jar" -type f | head -1)
-          echo "d8.jar: $D8_JAR"
-          java -cp "$D8_JAR" com.android.tools.r8.D8 --output dex_out classes/me/yun/silk/SilkCodec.class
-          echo "d8 OK"
-
-          # 打包
-          cd dex_out
-          zip -r ../SilkCodec.jar classes.dex
-          cd ..
+      - name: Extract DEX jar
+        run: |
+          find . -name "classes.jar" -path "*/silk-lib/*" -exec ls -la {} \;
+          find . -name "classes.jar" -path "*/silk-lib/*" | head -1 | xargs -I{} cp {} SilkCodec.jar
           ls -la SilkCodec.jar
 
       - name: Upload
